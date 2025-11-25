@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Tree Visualizer v9.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- ESTÉTICA FUTURISTA --- */
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #0aff0a;
+            --bg-dark: #050510;
+            --grid-line: rgba(0, 243, 255, 0.1);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            font-family: 'Rajdhani', sans-serif;
+            color: var(--neon-blue);
+            overflow-x: hidden;
+            margin: 0;
+            /* Se permite que el body crezca más allá de 100vh si es necesario */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Fondo de rejilla animado */
+        .cyber-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 200%;
+            height: 200%;
+            background-image: 
+                linear-gradient(var(--grid-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+            background-size: 40px 40px;
+            background-position: 0 0;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: gridMove 20s linear infinite;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(40px) translateZ(-200px); }
+        }
+
+        /* Efecto Vignette y Scanlines */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 60%, #000 100%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        /* Tipografía y Títulos */
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-blue);
+            letter-spacing: 2px;
+        }
+
+        /* Botones Neon */
+        .cyber-btn {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            font-family: 'Orbitron', sans-serif;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            clip-path: polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%);
+        }
+        
+        .cyber-btn:hover {
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 15px var(--neon-blue);
+            text-shadow: 0 0 5px white;
+        }
+
+        .cyber-btn.active {
+            background: var(--neon-blue);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        .cyber-btn-secondary {
+            border-color: var(--neon-purple);
+            color: var(--neon-purple);
+        }
+        .cyber-btn-secondary:hover {
+            box-shadow: 0 0 15px var(--neon-purple);
+            background: rgba(188, 19, 254, 0.1);
+        }
+
+        /* Inputs */
+        .cyber-input {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--neon-green);
+            color: var(--neon-green);
+            font-family: 'Orbitron', sans-serif;
+            box-shadow: inset 0 0 5px var(--neon-green);
+        }
+        .cyber-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px var(--neon-green), inset 0 0 10px var(--neon-green);
+        }
+
+        /* Contenedor del Canvas */
+        #canvas-container {
+            border: 1px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.1);
+            background: rgba(0, 10, 20, 0.6);
+            backdrop-filter: blur(5px);
+            position: relative;
+            /* AUMENTO DE ESPACIO: Altura mínima forzada para asegurar área grande */
+            min-height: 700px; 
+            flex-grow: 1;
+        }
+
+        /* Decoraciones de esquinas */
+        .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--neon-blue);
+            transition: all 0.5s;
+        }
+        .tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+        .bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+        .br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+    </style>
+</head>
+<body class="p-4">
+
+    <!-- Elementos de fondo -->
+    <div class="cyber-grid"></div>
+    <div class="overlay"></div>
+    <div class="scanlines"></div>
+
+    <!-- Header -->
+    <header class="flex justify-between items-center mb-6 relative z-10 border-b border-gray-800 pb-4">
+        <div>
+            <h1 class="text-3xl md:text-5xl font-bold italic">NEXUS <span class="text-xs align-top opacity-70">SYSTEM</span></h1>
+            <p class="text-sm tracking-widest text-cyan-300 opacity-70">VISUALIZADOR DE ESTRUCTURAS DE DATOS</p>
+        </div>
+        <div class="hidden md:block text-right">
+            <div class="text-xs text-purple-400">ESTADO DEL SISTEMA</div>
+            <!-- ID añadido para controlar el texto desde JS -->
+            <div id="system-status" class="text-xl font-mono text-gray-500">CONECTANDO...</div>
+        </div>
+    </header>
+
+    <!-- Panel de Control -->
+    <div class="flex flex-col md:flex-row gap-4 mb-4 relative z-10">
+        
+        <!-- Selector de Tipo -->
+        <div class="flex-1 bg-gray-900/80 p-4 border border-cyan-900 rounded backdrop-blur-sm">
+            <label class="block text-xs text-cyan-500 mb-2 tracking-widest">PROTOCOLO DE ARQUITECTURA</label>
+            <div class="flex gap-2">
+                <button onclick="setMode('general')" id="btn-general" class="cyber-btn active px-4 py-2 text-sm w-full font-bold">General</button>
+                <button onclick="setMode('binary')" id="btn-binary" class="cyber-btn px-4 py-2 text-sm w-full font-bold">Binario</button>
+                <!-- CAMBIO: BST a ABB -->
+                <button onclick="setMode('bst')" id="btn-bst" class="cyber-btn px-4 py-2 text-sm w-full font-bold">ABB</button>
+            </div>
+        </div>
+
+        <!-- Controles de Datos -->
+        <div class="flex-[2] bg-gray-900/80 p-4 border border-cyan-900 rounded backdrop-blur-sm flex flex-col md:flex-row gap-4 items-end">
+            <div class="w-full">
+                <label class="block text-xs text-green-500 mb-2 tracking-widest">INYECCIÓN DE DATOS</label>
+                <div class="flex gap-2">
+                    <input type="number" id="nodeValue" placeholder="Valor (0-999)" class="cyber-input px-3 py-2 w-full rounded text-lg">
+                    <button onclick="addNode()" class="cyber-btn cyber-btn-secondary px-6 py-2 font-bold">INSERTAR</button>
+                </div>
+            </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <button onclick="generateRandom()" class="cyber-btn cyber-btn-secondary px-4 py-2 text-sm w-full whitespace-nowrap">ALEATORIO</button>
+                <button onclick="resetTree()" class="cyber-btn px-4 py-2 text-sm w-full border-red-500 text-red-500 hover:text-red-100 hover:shadow-[0_0_10px_red]">PURGAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Área de Visualización -->
+    <div id="canvas-container" class="flex-1 w-full rounded overflow-hidden relative z-10">
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+        
+        <div class="absolute top-2 left-2 text-xs font-mono opacity-50 pointer-events-none">
+            COORDS: <span id="coords">0, 0</span><br>
+            NODES: <span id="node-count">0</span><br>
+            MODE: <span id="current-mode">GENERAL_TREE</span>
+        </div>
+
+        <canvas id="treeCanvas" class="w-full h-full block"></canvas>
+    </div>
+
+    <!-- Lógica JavaScript -->
+    <script>
+        // --- CONFIGURACIÓN DEL SISTEMA ---
+        const canvas = document.getElementById('treeCanvas');
+        const ctx = canvas.getContext('2d');
+        const nodeCountDisplay = document.getElementById('node-count');
+        const coordsDisplay = document.getElementById('coords');
+        const modeDisplay = document.getElementById('current-mode');
+        
+        let width, height;
+        let currentMode = 'general'; // 'general', 'binary', 'bst'
+        let tree = null;
+        let animationFrameId;
+
+        // --- CLASES DEL ÁRBOL ---
+
+        class Node {
+            constructor(value) {
+                this.value = value;
+                this.x = 0;
+                this.y = 0;
+                this.targetX = 0;
+                this.targetY = 0;
+                this.radius = 0; // Para animación de entrada
+                
+                // Punteros
+                this.children = []; // Para árbol general
+                this.left = null;   // Para binario / BST
+                this.right = null;  // Para binario / BST
+            }
+        }
+
+        // --- LÓGICA DE ÁRBOLES ---
+
+        class TreeManager {
+            constructor() {
+                this.root = null;
+                this.count = 0;
+            }
+
+            insert(value) {
+                if (currentMode === 'bst') this.insertBST(value);
+                else if (currentMode === 'binary') this.insertBinary(value);
+                else this.insertGeneral(value);
+                
+                this.recalculatePositions();
+            }
+
+            // 1. Árbol Binario de Búsqueda (Lógica estricta)
+            insertBST(value) {
+                const newNode = new Node(value);
+                if (!this.root) {
+                    this.root = newNode;
+                    this.count++;
+                    return;
+                }
+                
+                let current = this.root;
+                while (true) {
+                    if (value < current.value) {
+                        if (!current.left) {
+                            current.left = newNode;
+                            this.count++;
+                            break;
+                        }
+                        current = current.left;
+                    } else { // value >= current.value
+                        if (!current.right) {
+                            current.right = newNode;
+                            this.count++;
+                            break;
+                        }
+                        current = current.right;
+                    }
+                }
+            }
+
+            // 2. Árbol Binario (Inserción por niveles/cola para llenado equilibrado)
+            insertBinary(value) {
+                const newNode = new Node(value);
+                if (!this.root) {
+                    this.root = newNode;
+                    this.count++;
+                    return;
+                }
+
+                const queue = [this.root];
+                while (queue.length > 0) {
+                    const temp = queue.shift();
+
+                    if (!temp.left) {
+                        temp.left = newNode;
+                        this.count++;
+                        break;
+                    } else {
+                        queue.push(temp.left);
+                    }
+
+                    if (!temp.right) {
+                        temp.right = newNode;
+                        this.count++;
+                        break;
+                    } else {
+                        queue.push(temp.right);
+                    }
+                }
+            }
+
+            // 3. Árbol General (Hijos aleatorios para demostración)
+            insertGeneral(value) {
+                const newNode = new Node(value);
+                if (!this.root) {
+                    this.root = newNode;
+                    this.count++;
+                    return;
+                }
+
+                // En un árbol general real, el usuario elegiría el padre.
+                // Para esta demo visual automática, elegimos un padre aleatorio existente
+                // pero limitamos los hijos para que se vea bien.
+                const allNodes = this.getAllNodes(this.root);
+                
+                // Intentar encontrar un nodo con menos de 3 hijos para estética
+                let parent = allNodes[Math.floor(Math.random() * allNodes.length)];
+                let attempts = 0;
+                while(parent.children.length >= 3 && attempts < 10) {
+                    parent = allNodes[Math.floor(Math.random() * allNodes.length)];
+                    attempts++;
+                }
+
+                parent.children.push(newNode);
+                this.count++;
+            }
+
+            getAllNodes(node, list = []) {
+                if (!node) return list;
+                list.push(node);
+                if (currentMode === 'general') {
+                    node.children.forEach(child => this.getAllNodes(child, list));
+                } else {
+                    if (node.left) this.getAllNodes(node.left, list);
+                    if (node.right) this.getAllNodes(node.right, list);
+                }
+                return list;
+            }
+
+            recalculatePositions() {
+                if (!this.root) return;
+                
+                if (currentMode === 'general') {
+                    this.calculateGeneralPositions(this.root, width / 2, 80, width / 2);
+                } else {
+                    this.calculateBinaryPositions(this.root, width / 2, 80, width / 4);
+                }
+            }
+
+            calculateBinaryPositions(node, x, y, offset) {
+                if (!node) return;
+                node.targetX = x;
+                node.targetY = y;
+                
+                // Animar el radio al crear
+                if(node.radius === 0) node.radius = 1;
+
+                this.calculateBinaryPositions(node.left, x - offset, y + 80, offset / 1.8);
+                this.calculateBinaryPositions(node.right, x + offset, y + 80, offset / 1.8);
+            }
+
+            calculateGeneralPositions(node, x, y, availableWidth) {
+                if (!node) return;
+                node.targetX = x;
+                node.targetY = y;
+                
+                // Animar el radio al crear
+                if(node.radius === 0) node.radius = 1;
+
+                const childCount = node.children.length;
+                if (childCount > 0) {
+                    const slice = availableWidth / childCount;
+                    let startX = x - (availableWidth / 2) + (slice / 2);
+                    
+                    // Ajuste para que no sea tan ancho
+                    if (availableWidth > width * 0.8) startX += slice/2;
+
+                    node.children.forEach((child, index) => {
+                        this.calculateGeneralPositions(child, startX + (index * slice), y + 90, slice);
+                    });
+                }
+            }
+        }
+
+        // --- SISTEMA DE RENDERIZADO (CANVAS) ---
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            width = canvas.width;
+            height = canvas.height;
+            if(tree) tree.recalculatePositions();
+        }
+
+        function drawLink(x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            
+            // Efecto Neón en las líneas
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f3ff';
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0; // Reset
+            ctx.closePath();
+        }
+
+        function drawNode(node) {
+            // Interpolación simple para movimiento suave
+            node.x += (node.targetX - node.x) * 0.1;
+            node.y += (node.targetY - node.y) * 0.1;
+
+            // Animar crecimiento
+            if (node.radius < 25) node.radius += 1;
+
+            // Dibujar círculo
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            
+            // Estilo del nodo
+            if(currentMode === 'bst') {
+                ctx.fillStyle = '#050510';
+                ctx.strokeStyle = '#bc13fe'; // Morado para BST
+                ctx.shadowColor = '#bc13fe';
+            } else if (currentMode === 'binary') {
+                 ctx.fillStyle = '#050510';
+                ctx.strokeStyle = '#0aff0a'; // Verde para Binario
+                ctx.shadowColor = '#0aff0a';
+            } else {
+                 ctx.fillStyle = '#050510';
+                ctx.strokeStyle = '#00f3ff'; // Azul para General
+                ctx.shadowColor = '#00f3ff';
+            }
+
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Dibujar Texto
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px "Orbitron"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.value, node.x, node.y);
+            ctx.closePath();
+        }
+
+        function drawTreeRecursive(node) {
+            if (!node) return;
+
+            if (currentMode === 'general') {
+                node.children.forEach(child => {
+                    if(child) {
+                        drawLink(node.x, node.y, child.x, child.y);
+                        drawTreeRecursive(child);
+                    }
+                });
+            } else {
+                if (node.left) {
+                    drawLink(node.x, node.y, node.left.x, node.left.y);
+                    drawTreeRecursive(node.left);
+                }
+                if (node.right) {
+                    drawLink(node.x, node.y, node.right.x, node.right.y);
+                    drawTreeRecursive(node.right);
+                }
+            }
+            
+            // Dibujar nodos DESPUÉS de las líneas para que queden encima
+            drawNode(node);
+        }
+
+        function renderLoop() {
+            // Limpiar canvas con transparencia para estela (opcional, aqui usamos limpiar total)
+            ctx.clearRect(0, 0, width, height);
+
+            if (tree && tree.root) {
+                // Primero dibujamos todas las conexiones recursivamente
+                // Para evitar superposiciones raras, hacemos dos pasadas lógicas en una función
+                // Pero por simplicidad, la función recursiva funciona bien.
+                
+                // Necesitamos dibujar todas las líneas primero, y luego todos los nodos
+                // para que las líneas no tachen los nodos
+                drawConnections(tree.root);
+                drawNodes(tree.root);
+            }
+
+            animationFrameId = requestAnimationFrame(renderLoop);
+        }
+
+        function drawConnections(node) {
+            if(!node) return;
+            if (currentMode === 'general') {
+                node.children.forEach(child => {
+                    drawLink(node.x, node.y, child.x, child.y);
+                    drawConnections(child);
+                });
+            } else {
+                if (node.left) {
+                    drawLink(node.x, node.y, node.left.x, node.left.y);
+                    drawConnections(node.left);
+                }
+                if (node.right) {
+                    drawLink(node.x, node.y, node.right.x, node.right.y);
+                    drawConnections(node.right);
+                }
+            }
+        }
+
+        function drawNodes(node) {
+            if(!node) return;
+            drawNode(node); // Dibuja el actual
+            if (currentMode === 'general') {
+                node.children.forEach(child => drawNodes(child));
+            } else {
+                if (node.left) drawNodes(node.left);
+                if (node.right) drawNodes(node.right);
+            }
+        }
+
+        // --- INTERACCIÓN ---
+
+        function init() {
+            tree = new TreeManager();
+            window.addEventListener('resize', resizeCanvas);
+            // Aseguramos que el canvas tome el tamaño correcto al cargar
+            setTimeout(resizeCanvas, 100); 
+            renderLoop();
+            
+            // VERIFICACIÓN DE CONEXIÓN CON PYTHON
+            checkServerStatus();
+
+            // Evento para seguir el mouse (solo estética coordenadas)
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+                coordsDisplay.innerText = `${x}, ${y}`;
+            });
+
+            // Demo inicial
+            setTimeout(() => {
+                tree.insert(50);
+                tree.insert(30);
+                tree.insert(70);
+            }, 500);
+        }
+
+        // Nueva función para hablar con server.py
+        function checkServerStatus() {
+            const statusEl = document.getElementById('system-status');
+            
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    if(data.status === 'ONLINE') {
+                        statusEl.innerHTML = `<span class="text-green-400 blinking">EN LÍNEA (PYTHON)</span>`;
+                        statusEl.style.textShadow = "0 0 10px #0aff0a";
+                    }
+                })
+                .catch(err => {
+                    console.log("Modo local sin servidor Python detectado");
+                    // Fallback visual si se abre el HTML directamente sin Python
+                    statusEl.innerHTML = `<span class="text-yellow-400 blinking">MODO LOCAL (JS)</span>`;
+                });
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            // Actualización de etiqueta para mostrar ABB en lugar de BST
+            let displayText = mode.toUpperCase() + "_TREE";
+            if (mode === 'bst') displayText = "ABB_SYSTEM"; // Mostrar ABB
+            
+            modeDisplay.innerText = displayText;
+            
+            // UI Updates
+            document.querySelectorAll('.cyber-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${mode}`).classList.add('active');
+            
+            resetTree();
+        }
+
+        function addNode() {
+            const input = document.getElementById('nodeValue');
+            const val = parseInt(input.value);
+            
+            if (isNaN(val)) {
+                alert("ERROR: INPUT INVÁLIDO. INGRESE NÚMERO.");
+                return;
+            }
+            
+            tree.insert(val);
+            input.value = '';
+            input.focus();
+            updateStats();
+        }
+
+        function generateRandom() {
+            const val = Math.floor(Math.random() * 100);
+            tree.insert(val);
+            updateStats();
+        }
+
+        function resetTree() {
+            tree = new TreeManager();
+            updateStats();
+        }
+
+        function updateStats() {
+            nodeCountDisplay.innerText = tree.count;
+            // Efecto glitch en el texto
+            nodeCountDisplay.style.textShadow = "2px 0 red, -2px 0 blue";
+            setTimeout(() => {
+                nodeCountDisplay.style.textShadow = "none";
+            }, 200);
+        }
+
+        // Iniciar Sistema
+        init();
+
+    </script>
+</body>
+</html>
